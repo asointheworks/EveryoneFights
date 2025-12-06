@@ -69,7 +69,7 @@ namespace EveryoneFights.Core
             if (string.IsNullOrEmpty(characterId)) return contextSeed;
             unchecked
             {
-                int hash = characterId.GetHashCode();
+                int hash = characterId!.GetHashCode();
                 return hash ^ (contextSeed * 397);
             }
         }

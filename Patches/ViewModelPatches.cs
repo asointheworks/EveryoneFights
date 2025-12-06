@@ -1,7 +1,6 @@
 using EveryoneFights.Core;
 using HarmonyLib;
 using System;
-using System.IO;
 using TaleWorlds.CampaignSystem;
 
 namespace EveryoneFights.Patches
@@ -74,7 +73,7 @@ namespace EveryoneFights.Patches
             if (value == null || value.IsHero)
                 return;
 
-            int seed = GenderOverrideManager.GenerateSeed(value.StringId, __instance?.GetHashCode() ?? 0);
+            int seed = GenderOverrideManager.GenerateSeed(value.StringId ?? "", __instance?.GetHashCode() ?? 0);
             GenderOverrideManager.EnableOverride(value, seed);
         }
 
@@ -89,7 +88,7 @@ namespace EveryoneFights.Patches
             if (character == null || character.IsHero)
                 return;
 
-            int seed = GenderOverrideManager.GenerateSeed(character.StringId, __instance?.GetHashCode() ?? 0);
+            int seed = GenderOverrideManager.GenerateSeed(character.StringId ?? "", __instance?.GetHashCode() ?? 0);
             GenderOverrideManager.EnableOverride(character, seed);
         }
 
@@ -222,7 +221,7 @@ namespace EveryoneFights.Patches
             if (character == null || character.IsHero)
                 return;
 
-            int seed = GenderOverrideManager.GenerateSeed(character.StringId, index);
+            int seed = GenderOverrideManager.GenerateSeed(character.StringId ?? "", index);
             GenderOverrideManager.EnableOverride(character, seed);
         }
 
@@ -237,14 +236,7 @@ namespace EveryoneFights.Patches
 
         private static void Log(string message)
         {
-            try
-            {
-                File.AppendAllText("/tmp/EveryoneFights.log", $"[{DateTime.Now:HH:mm:ss}] {message}\n");
-            }
-            catch
-            {
-                // Ignore logging errors
-            }
+            SubModule.Log(message);
         }
 
         #endregion
