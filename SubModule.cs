@@ -1,3 +1,4 @@
+using GenderDiversity.Patches;
 using HarmonyLib;
 using TaleWorlds.MountAndBlade;
 
@@ -12,7 +13,12 @@ namespace GenderDiversity
             base.OnSubModuleLoad();
             
             _harmony = new Harmony("mod.genderdiversity");
+            
+            // Apply attribute-based patches (SpawnPatch, IsFemaleGetterPatch)
             _harmony.PatchAll();
+            
+            // Apply manual ViewModel patches (uses runtime type resolution)
+            ViewModelPatches.ApplyPatches(_harmony);
         }
 
         protected override void OnSubModuleUnloaded()

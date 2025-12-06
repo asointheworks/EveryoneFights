@@ -3,174 +3,222 @@ using HarmonyLib;
 using System;
 using System.Reflection;
 using TaleWorlds.CampaignSystem;
-using TaleWorlds.CampaignSystem.ViewModelCollection;
-using TaleWorlds.CampaignSystem.ViewModelCollection.GameMenu;
-using TaleWorlds.CampaignSystem.ViewModelCollection.Encyclopedia.Items;
 
 namespace GenderDiversity.Patches
 {
     /// <summary>
-    /// Patches for ViewModel classes that display troop portraits.
-    /// Enables gender override before character visuals are created.
-    /// 
-    /// WARNING: ViewModel signatures may change between game versions.
-    /// These patches target 1.2.x/1.3.x. If crashes occur after game updates,
-    /// check if constructor/method signatures have changed.
+    /// Manual patches for ViewModel classes.
+    /// Uses runtime type resolution to avoid compile-time assembly dependency issues.
     /// </summary>
-    [HarmonyPatch]
-    internal static class ViewModelPatches
+    public static class ViewModelPatches
     {
-        #region Party Screen Patches
+        private static Harmony _harmony;
 
         /// <summary>
-        /// Patch PartyCharacterVM.Character setter.
-        /// This is called when setting the character for display in party screen.
+        /// Apply all ViewModel patches manually.
+        /// Call this from SubModule.OnSubModuleLoad after harmony.PatchAll()
         /// </summary>
-        [HarmonyPatch(typeof(PartyCharacterVM), nameof(PartyCharacterVM.Character), MethodType.Setter)]
-        internal static class PartyCharacterVM_Character_Patch
+        public static void ApplyPatches(Harmony harmony)
         {
-            static void Prefix(CharacterObject value, PartyCharacterVM __instance)
+            _harmony = harmony;
+
+            TryPatchPartyCharacterVM();
+            TryPatchEncyclopediaUnitVM();
+            TryPatchRecruitVolunteerTroopVM();
+        }
+
+        #region Party Screen
+
+        private static void TryPatchPartyCharacterVM()
+        {
+            try
             {
-                if (value == null || value.IsHero)
+                var type = AccessTools.TypeByName("TaleWorlds.CampaignSystem.ViewModelCollection.PartyCharacterVM");
+                if (type == null)
+                {
+                    LogWarning("PartyCharacterVM type not found");
                     return;
+                }
 
-                // Generate seed from character ID and some instance context
-                // Using the instance's hashcode adds variety per roster slot
-                int seed = GenderOverrideManager.GenerateSeed(
-                    value.StringId, 
-                    __instance?.GetHashCode() ?? 0
-                );
-                GenderOverrideManager.EnableOverride(value, seed);
+                // Patch the Character property setter
+                var characterSetter = AccessTools.PropertySetter(type, "Character");
+                if (characterSetter != null)
+                {
+                    _harmony.Patch(characterSetter,
+                        prefix: new HarmonyMethod(typeof(ViewModelPatches), nameof(PartyCharacterVM_Character_Prefix)),
+                        postfix: new HarmonyMethod(typeof(ViewModelPatches), nameof(Generic_Postfix)));
+                }
+
+                // Patch the Troop property setter
+                var troopSetter = AccessTools.PropertySetter(type, "Troop");
+                if (troopSetter != null)
+                {
+                    _harmony.Patch(troopSetter,
+                        prefix: new HarmonyMethod(typeof(ViewModelPatches), nameof(PartyCharacterVM_Troop_Prefix)),
+                        postfix: new HarmonyMethod(typeof(ViewModelPatches), nameof(Generic_Postfix)));
+                }
             }
-
-            static void Postfix()
+            catch (Exception ex)
             {
-                GenderOverrideManager.DisableOverride();
+                LogWarning($"Failed to patch PartyCharacterVM: {ex.Message}");
             }
         }
 
-        /// <summary>
-        /// Alternative: Patch PartyCharacterVM.Troop setter if Character patch doesn't work.
-        /// The Troop property wraps TroopRosterElement which contains the CharacterObject.
-        /// </summary>
-        [HarmonyPatch(typeof(PartyCharacterVM), nameof(PartyCharacterVM.Troop), MethodType.Setter)]
-        internal static class PartyCharacterVM_Troop_Patch
+        public static void PartyCharacterVM_Character_Prefix(CharacterObject value, object __instance)
         {
-            static void Prefix(TroopRosterElement value, PartyCharacterVM __instance)
-            {
-                var character = value.Character;
-                if (character == null || character.IsHero)
-                    return;
+            if (value == null || value.IsHero)
+                return;
 
-                int seed = GenderOverrideManager.GenerateSeed(
-                    character.StringId,
-                    __instance?.GetHashCode() ?? 0
-                );
-                GenderOverrideManager.EnableOverride(character, seed);
-            }
-
-            static void Postfix()
-            {
-                GenderOverrideManager.DisableOverride();
-            }
+            int seed = GenderOverrideManager.GenerateSeed(
+                value.StringId,
+                __instance?.GetHashCode() ?? 0
+            );
+            GenderOverrideManager.EnableOverride(value, seed);
         }
 
-        #endregion
-
-        #region Recruitment Screen Patches
-
-        /// <summary>
-        /// Patch RecruitVolunteerTroopVM constructor.
-        /// Called when creating volunteer troop display in recruitment menu.
-        /// 
-        /// Constructor signature (1.2.x):
-        /// RecruitVolunteerTroopVM(RecruitVolunteerVM owner, CharacterObject character, 
-        ///                         int index, Action<RecruitVolunteerTroopVM> onClick, 
-        ///                         Action<RecruitVolunteerTroopVM> onRemoveFromCart)
-        /// </summary>
-        [HarmonyPatch(typeof(RecruitVolunteerTroopVM), MethodType.Constructor)]
-        [HarmonyPatch(new Type[] { 
-            typeof(RecruitVolunteerVM), 
-            typeof(CharacterObject), 
-            typeof(int), 
-            typeof(Action<RecruitVolunteerTroopVM>), 
-            typeof(Action<RecruitVolunteerTroopVM>) 
-        })]
-        internal static class RecruitVolunteerTroopVM_Ctor_Patch
+        public static void PartyCharacterVM_Troop_Prefix(object value, object __instance)
         {
-            static void Prefix(CharacterObject character, int index)
-            {
-                if (character == null || character.IsHero)
-                    return;
+            // TroopRosterElement is a struct - get Character property via reflection
+            if (value == null) return;
+            
+            var characterProp = value.GetType().GetProperty("Character");
+            if (characterProp == null) return;
+            
+            var character = characterProp.GetValue(value) as CharacterObject;
+            if (character == null || character.IsHero)
+                return;
 
-                // Use index for variety between volunteer slots
-                int seed = GenderOverrideManager.GenerateSeed(character.StringId, index);
-                GenderOverrideManager.EnableOverride(character, seed);
-            }
-
-            static void Postfix()
-            {
-                GenderOverrideManager.DisableOverride();
-            }
+            int seed = GenderOverrideManager.GenerateSeed(
+                character.StringId,
+                __instance?.GetHashCode() ?? 0
+            );
+            GenderOverrideManager.EnableOverride(character, seed);
         }
 
         #endregion
 
-        #region Encyclopedia Patches
+        #region Encyclopedia
 
-        /// <summary>
-        /// Patch EncyclopediaUnitVM constructor.
-        /// Called when displaying troop in encyclopedia.
-        /// 
-        /// Note: Encyclopedia shows the "canonical" troop, so we use a fixed seed
-        /// based only on the character ID for consistency.
-        /// </summary>
-        [HarmonyPatch(typeof(EncyclopediaUnitVM), MethodType.Constructor)]
-        [HarmonyPatch(new Type[] { typeof(CharacterObject), typeof(bool) })]
-        internal static class EncyclopediaUnitVM_Ctor_Patch
+        private static void TryPatchEncyclopediaUnitVM()
         {
-            static void Prefix(CharacterObject character)
+            try
             {
-                if (character == null || character.IsHero)
+                var type = AccessTools.TypeByName("TaleWorlds.CampaignSystem.ViewModelCollection.Encyclopedia.Items.EncyclopediaUnitVM");
+                if (type == null)
+                {
+                    LogWarning("EncyclopediaUnitVM type not found");
                     return;
+                }
 
-                // Fixed seed for encyclopedia - same troop always shows same gender
-                int seed = character.StringId?.GetHashCode() ?? 0;
-                GenderOverrideManager.EnableOverride(character, seed);
+                // Find constructor that takes (CharacterObject, bool)
+                var ctor = AccessTools.Constructor(type, new Type[] { typeof(CharacterObject), typeof(bool) });
+                if (ctor != null)
+                {
+                    _harmony.Patch(ctor,
+                        prefix: new HarmonyMethod(typeof(ViewModelPatches), nameof(EncyclopediaUnitVM_Prefix)),
+                        postfix: new HarmonyMethod(typeof(ViewModelPatches), nameof(Generic_Postfix)));
+                }
             }
-
-            static void Postfix()
+            catch (Exception ex)
             {
-                GenderOverrideManager.DisableOverride();
+                LogWarning($"Failed to patch EncyclopediaUnitVM: {ex.Message}");
             }
         }
 
-        /// <summary>
-        /// Patch EncyclopediaTroopTreeNodeVM constructor.
-        /// Called when displaying troop tree in encyclopedia.
-        /// </summary>
-        [HarmonyPatch(typeof(EncyclopediaTroopTreeNodeVM), MethodType.Constructor)]
-        [HarmonyPatch(new Type[] { 
-            typeof(CharacterObject), 
-            typeof(CharacterObject), 
-            typeof(bool),
-            typeof(TaleWorlds.CampaignSystem.CharacterDevelopment.PerkObject)
-        })]
-        internal static class EncyclopediaTroopTreeNodeVM_Ctor_Patch
+        public static void EncyclopediaUnitVM_Prefix(CharacterObject character)
         {
-            static void Prefix(CharacterObject rootCharacter)
+            if (character == null || character.IsHero)
+                return;
+
+            int seed = character.StringId?.GetHashCode() ?? 0;
+            GenderOverrideManager.EnableOverride(character, seed);
+        }
+
+        #endregion
+
+        #region Recruitment
+
+        private static void TryPatchRecruitVolunteerTroopVM()
+        {
+            try
             {
-                if (rootCharacter == null || rootCharacter.IsHero)
+                var type = AccessTools.TypeByName("TaleWorlds.CampaignSystem.ViewModelCollection.GameMenu.RecruitVolunteerTroopVM");
+                if (type == null)
+                {
+                    LogWarning("RecruitVolunteerTroopVM type not found");
                     return;
+                }
 
-                int seed = rootCharacter.StringId?.GetHashCode() ?? 0;
-                GenderOverrideManager.EnableOverride(rootCharacter, seed);
+                // Find constructors - signature varies by version
+                // Try common signatures
+                foreach (var ctor in type.GetConstructors())
+                {
+                    var parameters = ctor.GetParameters();
+                    // Look for constructor that has CharacterObject parameter
+                    int charIndex = -1;
+                    for (int i = 0; i < parameters.Length; i++)
+                    {
+                        if (parameters[i].ParameterType == typeof(CharacterObject))
+                        {
+                            charIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (charIndex >= 0)
+                    {
+                        _harmony.Patch(ctor,
+                            prefix: new HarmonyMethod(typeof(ViewModelPatches), nameof(RecruitVolunteerTroopVM_Prefix)),
+                            postfix: new HarmonyMethod(typeof(ViewModelPatches), nameof(Generic_Postfix)));
+                        break; // Only patch one constructor
+                    }
+                }
             }
-
-            static void Postfix()
+            catch (Exception ex)
             {
-                GenderOverrideManager.DisableOverride();
+                LogWarning($"Failed to patch RecruitVolunteerTroopVM: {ex.Message}");
             }
+        }
+
+        public static void RecruitVolunteerTroopVM_Prefix(object[] __args)
+        {
+            // Constructor parameters vary by version
+            // Look for CharacterObject in the arguments
+            CharacterObject character = null;
+            int index = 0;
+            
+            for (int i = 0; i < __args.Length; i++)
+            {
+                if (__args[i] is CharacterObject c)
+                {
+                    character = c;
+                }
+                else if (__args[i] is int idx)
+                {
+                    index = idx;
+                }
+            }
+            
+            if (character == null || character.IsHero)
+                return;
+
+            int seed = GenderOverrideManager.GenerateSeed(character.StringId, index);
+            GenderOverrideManager.EnableOverride(character, seed);
+        }
+
+        #endregion
+
+        #region Common
+
+        public static void Generic_Postfix()
+        {
+            GenderOverrideManager.DisableOverride();
+        }
+
+        private static void LogWarning(string message)
+        {
+            // Using TaleWorlds logging if available, otherwise console
+            System.Diagnostics.Debug.WriteLine($"[GenderDiversity] {message}");
         }
 
         #endregion
