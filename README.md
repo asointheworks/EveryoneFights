@@ -1,6 +1,6 @@
 # Everyone Fights
 
-A Mount & Blade II: Bannerlord mod that enables gender diversity in armies.
+A Mount & Blade II: Bannerlord mod that enables gender diversity in armies. However, it's not working right now :-)
 
 ## Features
 
