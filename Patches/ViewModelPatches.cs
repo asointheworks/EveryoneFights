@@ -9,9 +9,9 @@ namespace EveryoneFights.Patches
     public static class ViewModelPatches
     {
         private static Harmony? _harmony;
+        // Use temp folder for cross-platform compatibility
         private static readonly string LogPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.Personal),
-            "Mount and Blade II Bannerlord",
+            Path.GetTempPath(),
             "EveryoneFights.log"
         );
 
