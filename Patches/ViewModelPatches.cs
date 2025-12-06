@@ -9,11 +9,6 @@ namespace EveryoneFights.Patches
     public static class ViewModelPatches
     {
         private static Harmony? _harmony;
-        // Use temp folder for cross-platform compatibility
-        private static readonly string LogPath = Path.Combine(
-            Path.GetTempPath(),
-            "EveryoneFights.log"
-        );
 
         public static void ApplyPatches(Harmony harmony)
         {
@@ -244,11 +239,7 @@ namespace EveryoneFights.Patches
         {
             try
             {
-                var dir = Path.GetDirectoryName(LogPath);
-                if (dir != null && !Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-                    
-                File.AppendAllText(LogPath, $"[{DateTime.Now:HH:mm:ss}] {message}\n");
+                File.AppendAllText("/tmp/EveryoneFights.log", $"[{DateTime.Now:HH:mm:ss}] {message}\n");
             }
             catch
             {
