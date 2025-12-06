@@ -1,6 +1,7 @@
 using EveryoneFights.Core;
 using HarmonyLib;
 using System;
+using System.Reflection;
 using TaleWorlds.CampaignSystem;
 
 namespace EveryoneFights.Patches
@@ -28,13 +29,30 @@ namespace EveryoneFights.Patches
         {
             try
             {
-                var type = AccessTools.TypeByName("TaleWorlds.CampaignSystem.ViewModelCollection.PartyCharacterVM");
+                // Try multiple namespace variations - changed across versions
+                string[] typeNames = new[]
+                {
+                    "TaleWorlds.CampaignSystem.ViewModelCollection.Party.PartyCharacterVM",
+                    "TaleWorlds.CampaignSystem.ViewModelCollection.PartyCharacterVM"
+                };
+                
+                Type? type = null;
+                foreach (var name in typeNames)
+                {
+                    type = AccessTools.TypeByName(name);
+                    if (type != null)
+                    {
+                        Log($"Found PartyCharacterVM: {type.FullName}");
+                        break;
+                    }
+                    Log($"  Tried: {name} - not found");
+                }
+                
                 if (type == null)
                 {
-                    Log("ERROR: PartyCharacterVM type not found");
+                    Log("ERROR: PartyCharacterVM type not found in any known namespace");
                     return;
                 }
-                Log($"Found PartyCharacterVM: {type.FullName}");
 
                 var characterSetter = AccessTools.PropertySetter(type, "Character");
                 if (characterSetter != null)
@@ -153,13 +171,31 @@ namespace EveryoneFights.Patches
         {
             try
             {
-                var type = AccessTools.TypeByName("TaleWorlds.CampaignSystem.ViewModelCollection.GameMenu.RecruitVolunteerTroopVM");
+                // Try multiple namespace variations - changed across versions
+                string[] typeNames = new[]
+                {
+                    "TaleWorlds.CampaignSystem.ViewModelCollection.GameMenu.Recruitment.RecruitVolunteerTroopVM",
+                    "TaleWorlds.CampaignSystem.ViewModelCollection.GameMenu.RecruitVolunteerTroopVM",
+                    "TaleWorlds.CampaignSystem.ViewModelCollection.Recruitment.RecruitVolunteerTroopVM"
+                };
+                
+                Type? type = null;
+                foreach (var name in typeNames)
+                {
+                    type = AccessTools.TypeByName(name);
+                    if (type != null)
+                    {
+                        Log($"Found RecruitVolunteerTroopVM: {type.FullName}");
+                        break;
+                    }
+                    Log($"  Tried: {name} - not found");
+                }
+                
                 if (type == null)
                 {
-                    Log("ERROR: RecruitVolunteerTroopVM type not found");
+                    Log("ERROR: RecruitVolunteerTroopVM type not found in any known namespace");
                     return;
                 }
-                Log($"Found RecruitVolunteerTroopVM: {type.FullName}");
 
                 var ctors = type.GetConstructors();
                 Log($"  Found {ctors.Length} constructor(s)");
