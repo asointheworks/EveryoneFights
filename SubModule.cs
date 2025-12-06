@@ -2,6 +2,7 @@ using EveryoneFights.Patches;
 using HarmonyLib;
 using System;
 using System.IO;
+using System.Reflection;
 using TaleWorlds.MountAndBlade;
 
 namespace EveryoneFights
@@ -9,7 +10,28 @@ namespace EveryoneFights
     public class SubModule : MBSubModuleBase
     {
         private Harmony? _harmony;
-        private static readonly string LogFile = "/tmp/EveryoneFights.log";
+        private static string? _logFile;
+
+        private static string GetLogPath()
+        {
+            if (_logFile == null)
+            {
+                // Write log next to the DLL
+                var dllPath = Assembly.GetExecutingAssembly().Location;
+                var dllDir = Path.GetDirectoryName(dllPath) ?? "";
+                _logFile = Path.Combine(dllDir, "EveryoneFights.log");
+            }
+            return _logFile;
+        }
+
+        public static void Log(string message)
+        {
+            try
+            {
+                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:HH:mm:ss}] {message}\n");
+            }
+            catch { }
+        }
 
         protected override void OnSubModuleLoad()
         {
@@ -17,22 +39,20 @@ namespace EveryoneFights
             
             try
             {
-                File.WriteAllText(LogFile, $"[{DateTime.Now}] EveryoneFights loading...\n");
+                File.WriteAllText(GetLogPath(), $"[{DateTime.Now:HH:mm:ss}] EveryoneFights loading...\n");
                 
                 _harmony = new Harmony("mod.everyonefights");
-                File.AppendAllText(LogFile, $"[{DateTime.Now}] Harmony created\n");
+                Log("Harmony instance created");
                 
-                // Apply attribute-based patches (SpawnPatch, IsFemaleGetterPatch)
                 _harmony.PatchAll();
-                File.AppendAllText(LogFile, $"[{DateTime.Now}] PatchAll completed\n");
+                Log("PatchAll completed (SpawnPatch, IsFemaleGetterPatch)");
                 
-                // Apply manual ViewModel patches with logging
                 ViewModelPatches.ApplyPatches(_harmony);
-                File.AppendAllText(LogFile, $"[{DateTime.Now}] ViewModelPatches.ApplyPatches completed\n");
+                Log("ViewModelPatches.ApplyPatches completed");
             }
             catch (Exception ex)
             {
-                File.AppendAllText(LogFile, $"[{DateTime.Now}] ERROR: {ex}\n");
+                Log($"ERROR in OnSubModuleLoad: {ex}");
             }
         }
 
