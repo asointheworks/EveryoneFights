@@ -2,17 +2,17 @@ using MCM.Abstractions.Attributes;
 using MCM.Abstractions.Attributes.v2;
 using MCM.Abstractions.Base.Global;
 
-namespace GenderDiversity.Configuration
+namespace EveryoneFights.Configuration
 {
     internal sealed class Settings : AttributeGlobalSettings<Settings>
     {
-        public override string Id => "GenderDiversity";
-        public override string DisplayName => "Gender Diversity";
-        public override string FolderName => "GenderDiversity";
+        public override string Id => "EveryoneFights";
+        public override string DisplayName => "Everyone Fights";
+        public override string FolderName => "EveryoneFights";
         public override string FormatType => "json";
 
         [SettingPropertyBool("Enable Gender Diversity", Order = 0, RequireRestart = false,
-            HintText = "Enable or disable female troops spawning in battles and menus.")]
+            HintText = "Enable or disable female troops in battles and menus.")]
         [SettingPropertyGroup("General")]
         public bool Enabled { get; set; } = true;
 

@@ -1,30 +1,31 @@
-using GenderDiversity.Core;
+using EveryoneFights.Core;
 using HarmonyLib;
 using System;
-using System.Reflection;
+using System.IO;
 using TaleWorlds.CampaignSystem;
 
-namespace GenderDiversity.Patches
+namespace EveryoneFights.Patches
 {
-    /// <summary>
-    /// Manual patches for ViewModel classes.
-    /// Uses runtime type resolution to avoid compile-time assembly dependency issues.
-    /// </summary>
     public static class ViewModelPatches
     {
-        private static Harmony _harmony;
+        private static Harmony? _harmony;
+        private static readonly string LogPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Personal),
+            "Mount and Blade II Bannerlord",
+            "EveryoneFights.log"
+        );
 
-        /// <summary>
-        /// Apply all ViewModel patches manually.
-        /// Call this from SubModule.OnSubModuleLoad after harmony.PatchAll()
-        /// </summary>
         public static void ApplyPatches(Harmony harmony)
         {
             _harmony = harmony;
+            
+            Log("=== EveryoneFights Patch Application Started ===");
 
             TryPatchPartyCharacterVM();
             TryPatchEncyclopediaUnitVM();
             TryPatchRecruitVolunteerTroopVM();
+            
+            Log("=== Patch Application Complete ===");
         }
 
         #region Party Screen
@@ -36,31 +37,40 @@ namespace GenderDiversity.Patches
                 var type = AccessTools.TypeByName("TaleWorlds.CampaignSystem.ViewModelCollection.PartyCharacterVM");
                 if (type == null)
                 {
-                    LogWarning("PartyCharacterVM type not found");
+                    Log("ERROR: PartyCharacterVM type not found");
                     return;
                 }
+                Log($"Found PartyCharacterVM: {type.FullName}");
 
-                // Patch the Character property setter
                 var characterSetter = AccessTools.PropertySetter(type, "Character");
                 if (characterSetter != null)
                 {
-                    _harmony.Patch(characterSetter,
+                    _harmony?.Patch(characterSetter,
                         prefix: new HarmonyMethod(typeof(ViewModelPatches), nameof(PartyCharacterVM_Character_Prefix)),
                         postfix: new HarmonyMethod(typeof(ViewModelPatches), nameof(Generic_Postfix)));
+                    Log("  Patched Character setter");
+                }
+                else
+                {
+                    Log("  WARNING: Character setter not found");
                 }
 
-                // Patch the Troop property setter
                 var troopSetter = AccessTools.PropertySetter(type, "Troop");
                 if (troopSetter != null)
                 {
-                    _harmony.Patch(troopSetter,
+                    _harmony?.Patch(troopSetter,
                         prefix: new HarmonyMethod(typeof(ViewModelPatches), nameof(PartyCharacterVM_Troop_Prefix)),
                         postfix: new HarmonyMethod(typeof(ViewModelPatches), nameof(Generic_Postfix)));
+                    Log("  Patched Troop setter");
+                }
+                else
+                {
+                    Log("  WARNING: Troop setter not found");
                 }
             }
             catch (Exception ex)
             {
-                LogWarning($"Failed to patch PartyCharacterVM: {ex.Message}");
+                Log($"ERROR patching PartyCharacterVM: {ex}");
             }
         }
 
@@ -69,16 +79,12 @@ namespace GenderDiversity.Patches
             if (value == null || value.IsHero)
                 return;
 
-            int seed = GenderOverrideManager.GenerateSeed(
-                value.StringId,
-                __instance?.GetHashCode() ?? 0
-            );
+            int seed = GenderOverrideManager.GenerateSeed(value.StringId, __instance?.GetHashCode() ?? 0);
             GenderOverrideManager.EnableOverride(value, seed);
         }
 
         public static void PartyCharacterVM_Troop_Prefix(object value, object __instance)
         {
-            // TroopRosterElement is a struct - get Character property via reflection
             if (value == null) return;
             
             var characterProp = value.GetType().GetProperty("Character");
@@ -88,10 +94,7 @@ namespace GenderDiversity.Patches
             if (character == null || character.IsHero)
                 return;
 
-            int seed = GenderOverrideManager.GenerateSeed(
-                character.StringId,
-                __instance?.GetHashCode() ?? 0
-            );
+            int seed = GenderOverrideManager.GenerateSeed(character.StringId, __instance?.GetHashCode() ?? 0);
             GenderOverrideManager.EnableOverride(character, seed);
         }
 
@@ -106,22 +109,36 @@ namespace GenderDiversity.Patches
                 var type = AccessTools.TypeByName("TaleWorlds.CampaignSystem.ViewModelCollection.Encyclopedia.Items.EncyclopediaUnitVM");
                 if (type == null)
                 {
-                    LogWarning("EncyclopediaUnitVM type not found");
+                    Log("ERROR: EncyclopediaUnitVM type not found");
                     return;
                 }
+                Log($"Found EncyclopediaUnitVM: {type.FullName}");
 
-                // Find constructor that takes (CharacterObject, bool)
+                // List all constructors
+                var ctors = type.GetConstructors();
+                Log($"  Found {ctors.Length} constructor(s)");
+                foreach (var c in ctors)
+                {
+                    var ps = c.GetParameters();
+                    Log($"    ctor({string.Join(", ", Array.ConvertAll(ps, p => p.ParameterType.Name))})");
+                }
+
                 var ctor = AccessTools.Constructor(type, new Type[] { typeof(CharacterObject), typeof(bool) });
                 if (ctor != null)
                 {
-                    _harmony.Patch(ctor,
+                    _harmony?.Patch(ctor,
                         prefix: new HarmonyMethod(typeof(ViewModelPatches), nameof(EncyclopediaUnitVM_Prefix)),
                         postfix: new HarmonyMethod(typeof(ViewModelPatches), nameof(Generic_Postfix)));
+                    Log("  Patched constructor (CharacterObject, bool)");
+                }
+                else
+                {
+                    Log("  WARNING: Constructor (CharacterObject, bool) not found");
                 }
             }
             catch (Exception ex)
             {
-                LogWarning($"Failed to patch EncyclopediaUnitVM: {ex.Message}");
+                Log($"ERROR patching EncyclopediaUnitVM: {ex}");
             }
         }
 
@@ -145,57 +162,65 @@ namespace GenderDiversity.Patches
                 var type = AccessTools.TypeByName("TaleWorlds.CampaignSystem.ViewModelCollection.GameMenu.RecruitVolunteerTroopVM");
                 if (type == null)
                 {
-                    LogWarning("RecruitVolunteerTroopVM type not found");
+                    Log("ERROR: RecruitVolunteerTroopVM type not found");
                     return;
                 }
+                Log($"Found RecruitVolunteerTroopVM: {type.FullName}");
 
-                // Find constructors - signature varies by version
-                // Try common signatures
-                foreach (var ctor in type.GetConstructors())
+                var ctors = type.GetConstructors();
+                Log($"  Found {ctors.Length} constructor(s)");
+                
+                bool patched = false;
+                foreach (var ctor in ctors)
                 {
                     var parameters = ctor.GetParameters();
-                    // Look for constructor that has CharacterObject parameter
-                    int charIndex = -1;
-                    for (int i = 0; i < parameters.Length; i++)
+                    Log($"    ctor({string.Join(", ", Array.ConvertAll(parameters, p => p.ParameterType.Name))})");
+                    
+                    // Look for CharacterObject parameter
+                    bool hasCharacter = false;
+                    foreach (var p in parameters)
                     {
-                        if (parameters[i].ParameterType == typeof(CharacterObject))
+                        if (p.ParameterType == typeof(CharacterObject))
                         {
-                            charIndex = i;
+                            hasCharacter = true;
                             break;
                         }
                     }
 
-                    if (charIndex >= 0)
+                    if (hasCharacter && !patched)
                     {
-                        _harmony.Patch(ctor,
+                        _harmony?.Patch(ctor,
                             prefix: new HarmonyMethod(typeof(ViewModelPatches), nameof(RecruitVolunteerTroopVM_Prefix)),
                             postfix: new HarmonyMethod(typeof(ViewModelPatches), nameof(Generic_Postfix)));
-                        break; // Only patch one constructor
+                        Log("    ^ Patched this constructor");
+                        patched = true;
                     }
+                }
+                
+                if (!patched)
+                {
+                    Log("  WARNING: No suitable constructor found to patch");
                 }
             }
             catch (Exception ex)
             {
-                LogWarning($"Failed to patch RecruitVolunteerTroopVM: {ex.Message}");
+                Log($"ERROR patching RecruitVolunteerTroopVM: {ex}");
             }
         }
 
         public static void RecruitVolunteerTroopVM_Prefix(object[] __args)
         {
-            // Constructor parameters vary by version
-            // Look for CharacterObject in the arguments
-            CharacterObject character = null;
+            CharacterObject? character = null;
             int index = 0;
             
-            for (int i = 0; i < __args.Length; i++)
+            if (__args != null)
             {
-                if (__args[i] is CharacterObject c)
+                for (int i = 0; i < __args.Length; i++)
                 {
-                    character = c;
-                }
-                else if (__args[i] is int idx)
-                {
-                    index = idx;
+                    if (__args[i] is CharacterObject c)
+                        character = c;
+                    else if (__args[i] is int idx)
+                        index = idx;
                 }
             }
             
@@ -215,10 +240,20 @@ namespace GenderDiversity.Patches
             GenderOverrideManager.DisableOverride();
         }
 
-        private static void LogWarning(string message)
+        private static void Log(string message)
         {
-            // Using TaleWorlds logging if available, otherwise console
-            System.Diagnostics.Debug.WriteLine($"[GenderDiversity] {message}");
+            try
+            {
+                var dir = Path.GetDirectoryName(LogPath);
+                if (dir != null && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+                    
+                File.AppendAllText(LogPath, $"[{DateTime.Now:HH:mm:ss}] {message}\n");
+            }
+            catch
+            {
+                // Ignore logging errors
+            }
         }
 
         #endregion
