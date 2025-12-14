@@ -34,9 +34,12 @@ namespace EveryoneFights.Patches
         [HarmonyPostfix]
         private static void Postfix(ref bool __result)
         {
-            if (GenderOverrideManager.IsOverrideActive)
+            // Only change the result if we're actively overriding TO female
+            // If OverrideIsFemale is false, leave the original result unchanged
+            // This preserves female-only troops like Sword Sisters
+            if (GenderOverrideManager.IsOverrideActive && GenderOverrideManager.OverrideIsFemale)
             {
-                __result = GenderOverrideManager.OverrideIsFemale;
+                __result = true;
             }
         }
     }
