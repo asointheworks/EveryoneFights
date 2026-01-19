@@ -32,12 +32,16 @@ namespace EveryoneFights.Patches
     {
         [HarmonyPatch(typeof(BasicCharacterObject), nameof(BasicCharacterObject.IsFemale), MethodType.Getter)]
         [HarmonyPostfix]
-        private static void Postfix(ref bool __result)
+        private static void Postfix(BasicCharacterObject __instance, ref bool __result)
         {
-            // Only change the result if we're actively overriding TO female
-            // If OverrideIsFemale is false, leave the original result unchanged
-            // This preserves female-only troops like Sword Sisters
-            if (GenderOverrideManager.IsOverrideActive && GenderOverrideManager.OverrideIsFemale)
+            // Only change the result if:
+            // 1. We're actively overriding
+            // 2. This is the specific character we're overriding (not some other character queried during the operation)
+            // 3. The override value is female
+            // This prevents townspeople and other NPCs from being affected when spawning military troops
+            if (GenderOverrideManager.IsOverrideActive &&
+                GenderOverrideManager.IsTargetCharacter(__instance) &&
+                GenderOverrideManager.OverrideIsFemale)
             {
                 __result = true;
             }

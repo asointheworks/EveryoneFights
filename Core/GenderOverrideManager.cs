@@ -9,6 +9,7 @@ namespace EveryoneFights.Core
     {
         private static readonly ThreadLocal<bool> _overrideActive = new ThreadLocal<bool>(() => false);
         private static readonly ThreadLocal<bool> _overrideValue = new ThreadLocal<bool>(() => false);
+        private static readonly ThreadLocal<BasicCharacterObject?> _targetCharacter = new ThreadLocal<BasicCharacterObject?>(() => null);
 
         // Lore-friendly exceptions: troops that should remain single-gender
         // 
@@ -42,16 +43,34 @@ namespace EveryoneFights.Core
         public static bool IsOverrideActive => _overrideActive.Value;
         public static bool OverrideIsFemale => _overrideValue.Value;
 
+        /// <summary>
+        /// Checks if the given character is the one we're currently overriding.
+        /// This prevents the override from affecting other characters queried during the same operation.
+        /// </summary>
+        public static bool IsTargetCharacter(BasicCharacterObject? character)
+        {
+            if (character == null || _targetCharacter.Value == null)
+                return false;
+            return ReferenceEquals(character, _targetCharacter.Value);
+        }
+
         public static void EnableOverride(BasicCharacterObject? character, int seed = 0)
         {
+            // IMPORTANT: Compute ShouldBeFemale BEFORE setting _overrideActive to avoid reentrancy issues.
+            // ShouldBeFemale calls character.IsFemale which triggers our patch - if _overrideActive
+            // is already true, it could use stale values from a previous character.
+            bool shouldBeFemale = ShouldBeFemale(character, seed);
+
+            _targetCharacter.Value = character;
+            _overrideValue.Value = shouldBeFemale;
             _overrideActive.Value = true;
-            _overrideValue.Value = ShouldBeFemale(character, seed);
         }
 
         public static void DisableOverride()
         {
             _overrideActive.Value = false;
             _overrideValue.Value = false;
+            _targetCharacter.Value = null;
         }
 
         public static bool ShouldBeFemale(BasicCharacterObject? character, int seed)
